@@ -10,53 +10,37 @@ const dataRoutes = require("./routes/data");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+app.set("trust proxy", 1);
+app.disable("x-powered-by");
 app.use(helmet());
 app.use(compression());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// CORS Configuration - Allow multiple origins
-const allowedOrigins = [
-  "http://localhost:3000",
-  "https://cinema-house.vercel.app",
-  process.env.CLIENT_URL,
-].filter(Boolean);
+// CORS
+const allowedOrigins = new Set(
+  (process.env.ALLOWED_ORIGINS || "http://localhost:3000")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean)
+);
 
 app.use(
   cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
+    origin: (origin, cb) => cb(null, !origin || allowedOrigins.has(origin)),
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     allowedHeaders: ["Content-Type", "Authorization"],
+    maxAge: 86400,
   })
 );
 
-app.get("/", (req, res) =>
-  res.json({
-    message: "Cinema House API",
-    version: "1.0.0",
-    status: "healthy",
-  })
-);
+app.get("/", (req, res) => res.json({ message: "Cinema House API", status: "healthy" }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api", dataRoutes);
 
-app.use((req, res) =>
-  res.status(404).json({
-    success: false,
-    message: "Route not found",
-  })
-);
+app.use((req, res) => res.status(404).json({ success: false, message: "Route not found" }));
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
@@ -64,7 +48,6 @@ app.use((err, req, res, next) => {
   res.status(err.statusCode || 500).json({
     success: false,
     message: err.message || "Internal server error",
-    ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
   });
 });
 
@@ -83,6 +66,6 @@ const connectDB = async (retries = 5) => {
   }
 };
 
-connectDB();
-
-app.listen(PORT, () => console.log(`✓ Server running on port ${PORT}`));
+connectDB().then(() => {
+  app.listen(PORT, () => console.log(`✓ Server running on port ${PORT}`));
+});
