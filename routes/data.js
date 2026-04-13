@@ -83,7 +83,7 @@ router.get("/stats", verifyToken, async (req, res) => {
       stats,
     });
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    handleError(res, err);
   }
 });
 
@@ -112,13 +112,14 @@ router.put("/change-password", verifyToken, async (req, res) => {
     const isValidPassword = await bcrypt.compare(currentPassword, user.password);
 
     if (!isValidPassword) {
-      return res.status(400).json({ message: "Current password is incorrect" });
+      return res.status(401).json({ message: "Current password is incorrect" });
     }
 
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(newPassword, salt);
+    if (currentPassword === newPassword) {
+      return res.status(400).json({ message: "New password must differ from current password" });
+    }
 
-    user.password = hashedPassword;
+    user.password = await bcrypt.hash(newPassword, 12);
     await user.save();
 
     res.json({ message: "Password changed successfully" });
