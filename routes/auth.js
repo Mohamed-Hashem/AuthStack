@@ -6,6 +6,7 @@ const rateLimit = require("express-rate-limit");
 const User = require("../models/User");
 const { verifyToken } = require("../middleware/auth");
 const { formatUserResponse, handleError } = require("../utils/helpers");
+const { setAuthCookie, clearAuthCookie } = require("../lib/cookies");
 
 const router = express.Router();
 
@@ -97,6 +98,7 @@ router.post("/login", authLimiter, async (req, res) => {
     }
 
     const token = generateToken(user);
+    setAuthCookie(res, token);
 
     res.json({
       message: "Login successful",
@@ -106,6 +108,11 @@ router.post("/login", authLimiter, async (req, res) => {
   } catch (err) {
     handleError(res, err);
   }
+});
+
+router.post("/logout", (_req, res) => {
+  clearAuthCookie(res);
+  res.json({ message: "Logged out" });
 });
 
 router.get("/verify", verifyToken, (req, res) => {
