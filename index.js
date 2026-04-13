@@ -11,21 +11,41 @@ const app = express();
 
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
 app.use(compression());
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
-const allowedOrigins = new Set(
-  (process.env.ALLOWED_ORIGINS || "http://localhost:3000")
-    .split(",")
-    .map((o) => o.trim())
-    .filter(Boolean)
-);
+const DEFAULT_ORIGINS = [
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:5174",
+  "http://127.0.0.1:5174",
+].join(",");
+
+const originList = (process.env.ALLOWED_ORIGINS || DEFAULT_ORIGINS)
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+const allowAnyOrigin = originList.includes("*");
+const allowed = new Set(originList);
 
 app.use(
   cors({
-    origin: (origin, cb) => cb(null, !origin || allowedOrigins.has(origin)),
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true);
+      if (allowAnyOrigin) return cb(null, true);
+      if (allowed.has(origin)) return cb(null, true);
+      console.warn(`[CORS] blocked origin: ${origin}`);
+      return cb(null, false);
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
